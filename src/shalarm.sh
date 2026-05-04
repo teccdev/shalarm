@@ -513,7 +513,7 @@ function print_help
     echo "  -v or --version:    Print version and author info"
     echo "  -t or --test:       Test alarm set to 5 seconds in the future"
     echo "  -d or --debug:      Check out what's going wrong (or right)"
-    echo "  --snooze N:         Enable snooze, set interval to N seconds"
+    echo "  -s or --snooze N:   Enable snooze, set interval to N seconds"
     echo "  --timeout N:        Enable timeout, set limit to N seconds"
 }
 
@@ -729,7 +729,7 @@ fi
 
 
 ##  Process the arguments
-OPTS=$(getopt -n "$0" -o hvtd -l "help,version,test,debug,snooze:,timeout:" -- "$@")
+OPTS=$(getopt -n "$0" -o hvtds: -l "help,version,test,debug,snooze:,timeout:" -- "$@")
 
 if [[ $? -ne 0 ]]; then
     echo "ERROR:  Could not process arguments" 1>&2
@@ -766,7 +766,7 @@ while true; do
             fi
             shift 2;;
 
-        -t|--timeout)
+        --timeout)
             if [[ $2 = *[[:digit:]]* ]]; then
                 forceAlarmTimeout=$2
             fi
