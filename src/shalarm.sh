@@ -183,14 +183,31 @@ function print_time_error
 
 
 ##  Get rid of all the crap in the time string (colons, periods, whatever) and
-##  then check to make sure it wasn't just a bunch of characters or whatever
+##  then check to make sure it wasn't just a bunch of characters or whatever.
+##  Also detects AM/PM indicators for 12-hour time support.
 function parse_alarm_string
 {
+    alarmMeridiem=""
+
+    ##  Detect AM/PM indicator before stripping alpha characters
+    local stripped=$(echo "$1" | tr -d '[:space:]')
+    if [[ "$stripped" =~ [aA]\.?[mM]\.?$ ]] || [[ "$stripped" =~ ^[0-9.:/-]+[aA]$ ]]; then
+        alarmMeridiem="AM"
+    elif [[ "$stripped" =~ [pP]\.?[mM]\.?$ ]] || [[ "$stripped" =~ ^[0-9.:/-]+[pP]$ ]]; then
+        alarmMeridiem="PM"
+    fi
 
     ##  Echo the argument passed, pipe it to 'tr' a bunch of times and delete
     ##  the characters we don't want
-    alarmString=$(echo $1 | tr -d ':' | tr -d '.' | tr -d '-' | tr -d '/')
+    alarmString=$(echo $1 | tr -d ':' | tr -d '.' | tr -d '-' | tr -d '/' | tr -d ' ')
     alarmString=$(echo $alarmString | tr -d '[:alpha:]')
+
+    ##  Zero-pad to handle single-digit hour inputs (e.g. "5:00", "5a", "5:30PM")
+    if [ -n "$alarmString" ]; then
+        while [ ${#alarmString} -lt 2 ] || [ $(( ${#alarmString} % 2 )) -ne 0 ]; do
+            alarmString="0${alarmString}"
+        done
+    fi
 
     ##  We purposely remove all numeric digits from the time string and send it
     ##  to this 'check' variable.  Juuuust to be safe.
@@ -230,6 +247,15 @@ function set_alarm_time
     else
         print_time_error
         exit
+    fi
+
+    ##  Convert 12-hour to 24-hour if a meridian was specified
+    if [ ! -z "$alarmMeridiem" ]; then
+        if [ "$alarmMeridiem" == "AM" ] && [ $alarmHour -eq 12 ]; then
+            alarmHour="00"
+        elif [ "$alarmMeridiem" == "PM" ] && [ $alarmHour -ne 12 ]; then
+            alarmHour=$((10#$alarmHour + 12))
+        fi
     fi
 
     ##  Check to make sure that the hour, minute and second values are all
@@ -498,16 +524,27 @@ function print_usage
 function print_help
 {
     echo -e "Usage:  shalarm TIME\n"
-    echo -e "TIME is a 24-hr formatted time string."
-    echo -e "For example, ten PM may be formatted as follows:\n"
+    echo -e "TIME can be in 24-hour or 12-hour format.\n"
+    echo -e "24-hour examples (10 PM):"
     echo -e "   22:00:00"
     echo -e "   22:00"
     echo -e "   22"
     echo -e "   22.00.00"
     echo -e "   2200"
     echo -e "   220000\n"
-    echo -e "As an aside, formatting it as '10:00' will get you ten AM, and"
-    echo -e "'10 pm' won't work.\n"
+    echo -e "12-hour examples (10 PM):"
+    echo -e "   10:00PM"
+    echo -e "   10PM"
+    echo -e "   10:00 pm"
+    echo -e "   10 pm"
+    echo -e "   10p\n"
+    echo -e "12-hour examples (10 AM):"
+    echo -e "   10:00AM"
+    echo -e "   10AM"
+    echo -e "   10 am"
+    echo -e "   10a\n"
+    echo -e "AM/PM indicators are case-insensitive and may include optional"
+    echo -e "periods (e.g., 10:00a.m., 5:30P.M.).\n"
     echo -e "Arguments:"
     echo "  -h or --help:       Print this help screen"
     echo "  -v or --version:    Print version and author info"
@@ -857,7 +894,19 @@ fi
 if [ $testAlarm == 1 ]; then
     echo -e "\nTest alarm is ACTIVE ($alarmHour:$alarmMinute:$alarmSecond)"
 else
-    echo -e "\nAlarm is ACTIVE and set to $alarmHour:$alarmMinute:$alarmSecond"
+    if [ ! -z "$alarmMeridiem" ]; then
+        ##  Show the time in 12-hour format matching the user's input style
+        displayHour=$(( 10#$alarmHour % 12 ))
+        [ $displayHour -eq 0 ] && displayHour=12
+        if [ $alarmHour -ge 12 ]; then
+            displayMeridiem="PM"
+        else
+            displayMeridiem="AM"
+        fi
+        echo -e "\nAlarm is ACTIVE and set to $displayHour:$alarmMinute:$alarmSecond $displayMeridiem"
+    else
+        echo -e "\nAlarm is ACTIVE and set to $alarmHour:$alarmMinute:$alarmSecond"
+    fi
 fi
 
 ##  Print how much time is left until the alarm
